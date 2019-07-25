@@ -1,47 +1,40 @@
-const axios = require('axios');
+const Excel = require('exceljs/modern.nodejs');
 
-//A list of all NYSE stocks
-let symbols = [];
+let workbook = new Excel.Workbook();
 
-//Retrieves stocks by letter
-let all_symbols = new Promise(resolve => {
-    for (let i = 0; i < 26; i++) {
-        let ch = String.fromCharCode(65+i);
-        let url = `http://eoddata.com/stocklist/NYSE/${ch}.htm`;
+let stocks = [];
+let names = [];
+let retrieve = new Promise(resolve => {
+    let completed = false;
+    workbook.xlsx.readFile('assets/data/stocks.xlsx').then(function() {
+        let worksheet = workbook.getWorksheet('NYSE Company List');
 
-        axios.get(url).then(response => {
-            let text = response.data;
-            let exp = '/stockquote/NYSE/';
-            search(text, exp, []);
-        }).catch(error => {
-            console.log('Error ', error);
-        })
-
-        setTimeout(function() {
-            if (symbols.length == 26) {
-                resolve();
+        worksheet.eachRow(function(row, rowNumber) {
+            let stock = {
+                symbol: worksheet.getCell(`A${rowNumber}`).value,
+                sector: worksheet.getCell(`F${rowNumber}`).value,
+                industry: worksheet.getCell(`G${rowNumber}`).value
             }
-        }, 2000 );
-    }
+
+            let name = worksheet.getCell(`B${rowNumber}`).value;
+            if(!names.includes(name)) {
+                names.push(name);
+                stocks.push(stock);
+            }
+        });
+        
+        stocks.shift();
+        completed = true;
+    });
+
+    setTimeout(function() {
+        if (completed == true) {
+            resolve();
+        }
+    }, 2000);
 });
 
-//Searches each page for stock symbols
-function search (text, exp, sym) {
-    let start = text.search(exp)+exp.length;
-    if (start < exp.length) {
-        symbols.push(sym);
-        return false;
-    }
-
-    let nText = text.substring(start);
-    let current = text.substring(start, nText.indexOf('.')+start);
-    if(!sym.includes(current)) sym.push(current);
-
-    search(nText, exp, sym);
-}
-
-// Exports symbols
 module.exports = {
-    scrape: all_symbols,
-    symbols: symbols
+    retrieve: retrieve,
+    stocks: stocks
 }
