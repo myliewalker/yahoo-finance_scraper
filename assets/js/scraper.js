@@ -1,9 +1,8 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
-const sleep = require('util').promisify(setTimeout);
 const fs = require('fs');
 
-const section = 125;
+const section = 100;
 let stocks;
 let count = 0;
 
@@ -13,7 +12,7 @@ require('./all_stocks').retrieve.then(() => {
     iterate(0);
 });
 
-//Partitions stocks into 125 at a time
+//Partitions stock list
 function iterate(start) {
     if (start < stocks.length + section) end = start + section;
     else end = stocks.length;
@@ -26,7 +25,6 @@ function iterate(start) {
 function getInfo(stock, dex, end) {
     let symbol = stock.symbol
     var url = `https://finance.yahoo.com/quote/${symbol}?p=${symbol}`;
-
     // Grabs data
     axios.get(url).then(response => {
         const html = response.data;
@@ -34,12 +32,13 @@ function getInfo(stock, dex, end) {
 
         let head = $("title").text();
         let pdata = $("span[data-reactid='14']").text();
+
         stocks[dex].name = head.substring(0, head.indexOf('(')-1);
         stocks[dex].price = pdata.substring(0, pdata.indexOf('.')+3);
 
         count++;
         console.log(count);
-        if (count == section) {
+        if (count == 99) {
             count = 0;
             setTimeout(function() {
                 if(end < stocks.length) iterate(end);
@@ -47,7 +46,7 @@ function getInfo(stock, dex, end) {
         }
     }).catch(error => {
         count++;
-        console.log(error);
+        console.log('Error');
     });
 }
 
