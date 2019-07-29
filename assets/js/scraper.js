@@ -1,62 +1,52 @@
-const axios = require('axios');
-const cheerio = require('cheerio');
 const fs = require('fs');
+var Crawler = require('crawler');
 
-const section = 100;
 let stocks;
-let count = 0;
-
-//Calls scrape on all symbols
+// Retrieves information for all stocks
 require('./all_stocks').retrieve.then(() => {
     stocks = require('./all_stocks').stocks;
-    iterate(0);
+    for (let i = 0; i < stocks.length; i++) {
+        stocks[i].url = `https://finance.yahoo.com/quote/${stocks[i].symbol}?p=${stocks[i].symbol}`
+        c.queue({uri:stocks[i].url, dex:i});
+    }
 });
 
-//Partitions stock list
-function iterate(start) {
-    if (start < stocks.length + section) end = start + section;
-    else end = stocks.length;
-    for (let i = start; i < end; i++) {
-        getInfo(stocks[i], i, end);
-    }
-}
-
-//Gets name and price of stocks
-function getInfo(stock, dex, end) {
-    let symbol = stock.symbol
-    var url = `https://finance.yahoo.com/quote/${symbol}?p=${symbol}`;
-    // Grabs data
-    axios.get(url).then(response => {
-        const html = response.data;
-        const $ = cheerio.load(html);
-
-        let head = $("title").text();
-        let pdata = $("span[data-reactid='14']").text();
-
-        stocks[dex].name = head.substring(0, head.indexOf('(')-1);
-        stocks[dex].price = pdata.substring(0, pdata.indexOf('.')+3);
-
-        count++;
-        console.log(count);
-        if (count == 99) {
-            count = 0;
-            setTimeout(function() {
-                if(end < stocks.length) iterate(end);
-            }, 3000);
+// Grabs data
+var c = new Crawler({
+    maxConnections : 10,
+    callback : function (error, res, done) {
+        if (error) {
+            console.log(error);
+        } 
+        else {
+            var $ = res.$;
+            let dex = res.options.dex;
+            let text = $.text();
+            // Gets name
+            let head = $("title").text();
+            stocks[dex].name = head.substring(0, head.indexOf("(")-1);
+            if (stocks[dex].name.match(/^[0-9]+$/) != null) {
+                let target = `shortName\":\"${stocks[dex].name}\",\"longName\":\"`;
+                let ndata = text.substring(text.indexOf(target)+target.length);
+                stocks[dex].name = ndata.substring(0, ndata.indexOf('\"'));
+                console.log(stocks[dex]);
+            }
+            // Gets price
+            let pdata = text.substring(text.indexOf("Add to watchlistVisitors trend2W10W9M")+37);
+            let end = pdata.substring(pdata.indexOf(".")+1);
+            stocks[dex].price = pdata.substring(0, pdata.indexOf(".")+end.search(/\D/)+1);
         }
-    }).catch(error => {
-        count++;
-        console.log('Error');
-    });
-}
+        done();
+    }
+});
 
-// Export stocks
+// // Export stocks
 
-// Export to a text file
-// fs.writeFile('assets/data/latest.txt', new Date(), (err) => {
-//     if (err) {
-//         console.error(err);
-//         return;
-//     }
-//     console.log("File has been created");
-// });
+// // Export to a text file
+// // fs.writeFile('assets/data/latest.txt', new Date(), (err) => {
+// //     if (err) {
+// //         console.error(err);
+// //         return;
+// //     }
+// //     console.log("File has been created");
+// // });
